@@ -1,0 +1,59 @@
+{
+  "displayName": "Homebridge Playstation",
+  "name": "homebridge-playstation-game-title",
+  "version": "1.0.0",
+  "description": "Playstation integration for Homebridge",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/NikDevx/homebridge-playstation-game-title.git"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "config.schema.json"
+  ],
+  "bugs": {
+    "url": "https://github.com/NikDevx/homebridge-playstation-game-title/issues"
+  },
+  "author": {
+    "name": "Nik_Dev",
+    "url": "https://t.me/Nik_Dev"
+  },
+  "funding": {
+    "type": "custom",
+    "url": "https://revolut.me/nik_dev"
+  },
+  "engines": {
+    "node": ">=16.20.0",
+    "homebridge": ">=1.6.0"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "lint": "eslint src/**.ts --max-warnings=0",
+    "watch": "npm run build && npm link && nodemon",
+    "build": "rm -rf ./dist && tsc && cp ./src/title_game.py ./dist/ && cp ./src/homebridge_psn_data.json ./dist/ && chmod 666 ./dist/homebridge_psn_data.json",
+    "prepublishOnly": "npm run lint && npm run build"
+  },
+  "bin": {
+    "homebridge-playstation-login": "./dist/cli.js"
+  },
+  "keywords": [
+    "homebridge-plugin"
+  ],
+  "dependencies": {
+    "playactor": "^0.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.4.2",
+    "@typescript-eslint/eslint-plugin": "^6.1.0",
+    "@typescript-eslint/parser": "^6.1.0",
+    "eslint": "^8.45.0",
+    "homebridge": "^1.7.0",
+    "homebridge-config-ui-x": "^4.52.3",
+    "nodemon": "^3.0.1",
+    "rimraf": "^5.0.10",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  }
+}

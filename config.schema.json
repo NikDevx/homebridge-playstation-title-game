@@ -1,0 +1,63 @@
+{
+  "pluginAlias": "playstation",
+  "pluginType": "platform",
+  "footerDisplay": "Homebridge plugin for Playstation 4/5 consoles.",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "PlayStation",
+        "description": "The name of this platform as it will appear in Homebridge logs."
+      },
+      "pollInterval": {
+        "title": "Poll Interval",
+        "type": "integer",
+        "default": 6000,
+        "description": "Determine how often should device information be fetched (in milliseconds)"
+      },
+      "PSNAWP": {
+        "title": "PSNAWP Key",
+        "type": "string",
+        "default": ""
+      },
+      "account_id": {
+        "title": "Account ID (IDs for many account)",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "title": "Account ID",
+              "type": "string",
+              "placeholder": "1111111111111111111",
+              "minLength": 8
+            }
+          }
+        }
+      }
+    }
+  },
+  "form": [
+    "name",
+    "pollInterval",
+    {
+      "type": "help",
+      "helpvalue": "<p style=\"margin-bottom: 5px;\">1. Login into your <a href=\"https://www.playstation.com/\" target=\"_blank\"><b>PlayStation</b></a> account.<br>2. Go to <a href=\"https://ca.account.sony.com/api/v1/ssocookie\" target=\"_blank\"><b>get npsso value</b></a><br>3. Copy and paste key to PSNAWP field.</p>"
+    },
+    "PSNAWP",
+    {
+      "type": "help",
+      "helpvalue": "<p style=\"margin-bottom: 5px;\">To get your account IDs, use the command <code>client.account_id</code> from the official <a href=\"https://github.com/isFakeAccount/psnawp\" target=\"_blank\"><b>PSNAWP documentation</b></a>.</p>"
+    },
+    {
+      "key": "account_id",
+      "type": "array",
+      "items": [
+        "account_id[].id"
+      ]
+    }
+  ]
+}

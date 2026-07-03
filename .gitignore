@@ -1,0 +1,61 @@
+# ------------- Compiled Code & Build Outputs ------------- #
+dist/
+dist/token.txt
+build/Release
+*.tsbuildinfo
+*.tgz
+
+# ------------- Dependency Directories ------------- #
+node_modules/
+
+# ------------- Environment & Secrets ------------- #
+.env
+.env.test
+.env.local
+.env.*.local
+
+# ------------- IDEs & Editors ------------- #
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# ------------- OS specific files ------------- #
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# ------------- Logs & Runtime ------------- #
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pids
+*.pid
+*.seed
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ------------- Python Virtual Environments ------------- #
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ------------- Caches & History ------------- #
+.npm
+.eslintcache
+.node_repl_history
+.yarn-integrity
+.cache
