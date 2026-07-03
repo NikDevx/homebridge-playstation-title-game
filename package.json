@@ -32,7 +32,8 @@
   "scripts": {
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && npm link && nodemon",
-    "build": "rm -rf ./dist && tsc && cp ./src/title_game.py ./dist/ && cp ./src/homebridge_psn_data.json ./dist/ && chmod 666 ./dist/homebridge_psn_data.json",
+    "build": "rm -rf ./dist && tsc && cp ./src/title_game.py ./dist/ && cp ./src/homebridge_psn_data.json ./dist/",
+    "postinstall": "chmod 666 ./dist/homebridge_psn_data.json",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "bin": {

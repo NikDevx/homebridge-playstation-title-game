@@ -120,6 +120,7 @@ export class PlaystationAccessory {
         if (this.titleUpdateInterval) clearInterval(this.titleUpdateInterval);
 
         this.titleUpdateInterval = setInterval(() => {
+            // ПРИБРАНО ПЕРЕВІРКУ НА AWAKE! Тепер статус PSN буде тягнутися завжди, як і раніше.
             this.fetchAndSetTitle();
         }, polling);
     }
@@ -149,6 +150,7 @@ export class PlaystationAccessory {
 
             if (!newTitle || newTitle.length === 0) return;
 
+            // Фільтруємо непотрібні логи від Python
             if (
                 newTitle.toLowerCase().includes('error') ||
                 newTitle.includes('{') ||
