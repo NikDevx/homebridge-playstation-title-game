@@ -137,20 +137,22 @@ export class PlaystationAccessory {
         const get_title = spawn('python3', [scriptPath, PSNAWP, JSON.stringify(account_ids)]);
 
         let output = '';
+
         get_title.stdout.on('data', (data) => {
             output += data.toString();
         });
 
-        get_title.stderr.on('data', (err) => {
-            this.platform.log.debug(`Python Script Stderr: ${err.toString()}`);
-        });
+        get_title.on('close', (code) => {
+            get_title.removeAllListeners();
 
-        get_title.on('close', () => {
+            if (code !== 0) {
+                this.platform.log.debug(`Python script exited with code ${code}`);
+                return;
+            }
+
             const newTitle = output.trim();
-
             if (!newTitle || newTitle.length === 0) return;
 
-            // Фільтруємо непотрібні логи від Python
             if (
                 newTitle.toLowerCase().includes('error') ||
                 newTitle.includes('{') ||
@@ -171,6 +173,11 @@ export class PlaystationAccessory {
                     .setCharacteristic(this.Characteristic.Name, safeTitle)
                     .setCharacteristic(this.Characteristic.ConfiguredName, safeTitle);
             }
+        });
+
+        get_title.on('error', (err) => {
+            this.platform.log.error(`Failed to start python script: ${err.message}`);
+            get_title.removeAllListeners();
         });
     }
 
@@ -213,8 +220,18 @@ export class PlaystationAccessory {
                         this.platform.log.debug(`[${this.deviceInformation.id}] Waking device...`);
                         await timeout(device.wake(), 15_000);
                     } else {
-                        this.platform.log.debug(`[${this.deviceInformation.id}] Sending standby...`);
-                        await timeout(connection.standby(), 15_000);
+                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Sending standby command via CLI with wait...`);
+
+                        const standbyCmd = spawn('playactor', ['standby', '--device-id', this.deviceInformation.id, '--wait-for-standby', '10000']);
+
+                        standbyCmd.stdout.on('data', (data) => this.platform.log.debug(`[playactor]: ${data}`));
+                        standbyCmd.on('close', (code) => {
+                            if (code === 0) {
+                                this.platform.log.info(`[${this.deviceInformation.id}] ✅ Console is now in Standby.`);
+                            } else {
+                                this.platform.log.error(`[${this.deviceInformation.id}] ❌ CLI Error code: ${code}`);
+                            }
+                        });
                     }
 
                     await connection.close();
