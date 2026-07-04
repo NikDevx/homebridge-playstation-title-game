@@ -9,7 +9,10 @@ from psnawp_api.core import psnawp_exceptions
 os.environ["PSNAWP_CACHE_DIR"] = "/tmp/psnawp_cache"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TOKEN_FILE = os.path.join(BASE_DIR, "homebridge_psn_data.json")
+if len(sys.argv) >= 4:
+    TOKEN_FILE = sys.argv[3]
+else:
+    TOKEN_FILE = os.path.join(BASE_DIR, "homebridge_psn_data.json")
 
 
 def save_token_response(token_response):

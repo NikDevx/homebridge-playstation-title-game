@@ -1,9 +1,10 @@
 {
   "displayName": "Homebridge Playstation",
   "name": "homebridge-playstation-title-game",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Playstation integration for Homebridge",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/NikDevx/homebridge-playstation-title-game#readme",
   "repository": {
     "type": "git",
     "url": "git://github.com/NikDevx/homebridge-playstation-title-game.git"
@@ -32,15 +33,18 @@
   "scripts": {
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && npm link && nodemon",
-    "build": "rm -rf ./dist && tsc && cp ./src/title_game.py ./dist/ && cp ./src/homebridge_psn_data.json ./dist/",
-    "postinstall": "if [ -f ./dist/homebridge_psn_data.json ]; then chmod 666 ./dist/homebridge_psn_data.json; fi",
+    "build": "rm -rf ./dist && tsc && cp ./src/title_game.py ./dist/",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "bin": {
     "homebridge-playstation-login": "./dist/cli.js"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "playstation",
+    "ps5",
+    "ps4",
+    "game-title"
   ],
   "dependencies": {
     "playactor": "^0.4.1"

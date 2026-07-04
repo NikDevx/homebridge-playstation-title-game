@@ -1,2 +1,2 @@
 export const PLATFORM_NAME = "playstation";
-export const PLUGIN_NAME = "homebridge-playstation-game-title";
+export const PLUGIN_NAME = "homebridge-playstation-title-game";

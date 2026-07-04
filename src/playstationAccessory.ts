@@ -50,12 +50,17 @@ export class PlaystationAccessory {
         private deviceInformation: IDiscoveredDevice,
     ) {
         const uuid = this.api.hap.uuid.generate(deviceInformation.id);
-        const deviceName = deviceInformation.name;
+        const override = this.platform.config.overrides?.find(
+            (o) => o.deviceId === deviceInformation.id
+        );
+
+        const deviceName = override?.name || this.platform.config.name || 'PlayStation';
 
         this.accessory = new this.api.platformAccessory(deviceName, uuid);
         this.accessory.category = this.api.hap.Categories.TV_SET_TOP_BOX;
 
         this.accessory.getService(this.Service.AccessoryInformation)!
+            .setCharacteristic(this.Characteristic.Name, deviceName)
             .setCharacteristic(this.Characteristic.Manufacturer, 'Sony')
             .setCharacteristic(this.Characteristic.Model, deviceInformation.type)
             .setCharacteristic(this.Characteristic.SerialNumber, deviceInformation.id)
@@ -65,12 +70,16 @@ export class PlaystationAccessory {
             this.accessory.getService(this.Service.Television) ||
             this.accessory.addService(this.Service.Television);
 
-        this.tvService
-            .setCharacteristic(this.Characteristic.ConfiguredName, deviceName)
-            .setCharacteristic(
-                this.Characteristic.SleepDiscoveryMode,
-                this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE,
-            );
+        this.tvService.setCharacteristic(this.Characteristic.Name, deviceName);
+        this.tvService.setCharacteristic(this.Characteristic.ConfiguredName, deviceName);
+
+        this.tvService.getCharacteristic(this.Characteristic.ConfiguredName).updateValue(deviceName);
+        this.tvService.getCharacteristic(this.Characteristic.Name).updateValue(deviceName);
+
+        this.tvService.setCharacteristic(
+            this.Characteristic.SleepDiscoveryMode,
+            this.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE,
+        );
 
         this.tvService.getCharacteristic(this.Characteristic.Active)
             .onSet(this.setOn.bind(this))
@@ -83,7 +92,7 @@ export class PlaystationAccessory {
 
         this.tvService.setCharacteristic(this.Characteristic.ActiveIdentifier, 0);
 
-        this.addTitle('PSAXXXX', 'Loading...', 0);
+        this.addTitle('PSAXXXX', 'Loading', 0);
         this.startTitleUpdateLoop();
         this.updateGameTitleNow();
 
@@ -120,7 +129,6 @@ export class PlaystationAccessory {
         if (this.titleUpdateInterval) clearInterval(this.titleUpdateInterval);
 
         this.titleUpdateInterval = setInterval(() => {
-            // ПРИБРАНО ПЕРЕВІРКУ НА AWAKE! Тепер статус PSN буде тягнутися завжди, як і раніше.
             this.fetchAndSetTitle();
         }, polling);
     }
@@ -133,8 +141,8 @@ export class PlaystationAccessory {
         const PSNAWP = this.platform.config.PSNAWP || '';
         const account_ids: string[] = (this.platform.config.account_id || []).map((acc) => acc.id);
         const scriptPath = path.join(__dirname, 'title_game.py');
-
-        const get_title = spawn('python3', [scriptPath, PSNAWP, JSON.stringify(account_ids)]);
+        const dataFilePath = path.join(this.platform.api.user.storagePath(), 'homebridge_psn_data.json');
+        const get_title = spawn('python3', [scriptPath, PSNAWP, JSON.stringify(account_ids), dataFilePath]);
 
         let output = '';
 

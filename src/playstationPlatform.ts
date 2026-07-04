@@ -7,6 +7,9 @@ import {
   IndependentPlatformPlugin,
 } from "homebridge";
 
+import fs from 'fs';
+import path from 'path';
+
 import { PlaystationAccessory } from "./playstationAccessory";
 import { Discovery } from "playactor/dist/discovery";
 
@@ -20,8 +23,7 @@ export interface PlaystationPlatformConfig extends PlatformConfig {
 
 export class PlaystationPlatform implements IndependentPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
-  public readonly Characteristic: typeof Characteristic =
-    this.api.hap.Characteristic;
+  public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
 
   public readonly kDefaultPollInterval = 15_000;
 
@@ -30,6 +32,19 @@ export class PlaystationPlatform implements IndependentPlatformPlugin {
     public readonly config: PlaystationPlatformConfig,
     public readonly api: API
   ) {
+    const dataFilePath = path.join(this.api.user.storagePath(), 'homebridge_psn_data.json');
+
+    try {
+        if (!fs.existsSync(dataFilePath)) {
+            fs.writeFileSync(dataFilePath, '{}', { encoding: 'utf8', mode: 0o666 });
+            this.log.info(`[⚠️] Created dynamic PSN data file at: ${dataFilePath}`);
+        } else {
+            fs.chmodSync(dataFilePath, 0o666);
+        }
+    } catch (err) {
+        this.log.error(`Failed to set up PSN data file: ${(err as Error).message}`);
+    }
+
     this.log.debug("Config", config);
     this.log.info("Discovering devices...");
 
