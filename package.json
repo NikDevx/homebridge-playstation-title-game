@@ -1,12 +1,12 @@
 {
   "displayName": "Homebridge Playstation",
-  "name": "homebridge-playstation-game-title",
+  "name": "homebridge-playstation-title-game",
   "version": "1.0.0",
   "description": "Playstation integration for Homebridge",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/NikDevx/homebridge-playstation-game-title.git"
+    "url": "git://github.com/NikDevx/homebridge-playstation-title-game.git"
   },
   "files": [
     "dist",
@@ -14,7 +14,7 @@
     "config.schema.json"
   ],
   "bugs": {
-    "url": "https://github.com/NikDevx/homebridge-playstation-game-title/issues"
+    "url": "https://github.com/NikDevx/homebridge-playstation-title-game/issues"
   },
   "author": {
     "name": "Nik_Dev",
