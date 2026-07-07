@@ -9,7 +9,8 @@ _Hey Siri, turn on PS5_ finally possible!
 
 This integration exposes a Switch service that can be used to switch on/off your PS4/PS5, and determine its current state and show realtime titles of playing game. 
 
-Most of the work is done by the amazing [playactor](https://github.com/dhleong/playactor) library, which this project depends on and [psnawp](https://github.com/isFakeAccount/psnawp)
+This project is inspired by the original work of [homebridge-playstation](https://github.com/kopiro/homebridge-playstation).
+<br>Most of the work is done by the amazing [playactor](https://github.com/dhleong/playactor) library, which this project depends on and [psnawp](https://github.com/isFakeAccount/psnawp)
 ## Installation
 
 You can install it via Homebridge UI or manually using:
