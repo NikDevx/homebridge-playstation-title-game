@@ -225,21 +225,12 @@ export class PlaystationAccessory {
                     const connection = await device.openConnection();
 
                     if (value) {
-                        this.platform.log.debug(`[${this.deviceInformation.id}] Waking device...`);
+                        this.platform.log.debug(`[${this.deviceInformation.id}] 🆙 Waking device...`);
                         await timeout(device.wake(), 15_000);
                     } else {
-                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Sending standby command via CLI with wait...`);
+                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Sending standby command...`);
 
-                        const standbyCmd = spawn('playactor', ['standby', '--device-id', this.deviceInformation.id, '--wait-for-standby', '10000']);
-
-                        standbyCmd.stdout.on('data', (data) => this.platform.log.debug(`[playactor]: ${data}`));
-                        standbyCmd.on('close', (code) => {
-                            if (code === 0) {
-                                this.platform.log.info(`[${this.deviceInformation.id}] ✅ Console is now in Standby.`);
-                            } else {
-                                this.platform.log.error(`[${this.deviceInformation.id}] ❌ CLI Error code: ${code}`);
-                            }
-                        });
+                        await timeout(connection.standby(), 15_000);
                     }
 
                     await connection.close();
