@@ -5,7 +5,7 @@
 
 _Hey Siri, turn on PS5_ finally possible!
 
-<img src="https://github.com/NikDevx/homebridge-playstation-game-title/blob/main/PS5%20title%20change.gif?raw=true" width="200">
+<img src="https://github.com/NikDevx/homebridge-playstation-title-game/blob/main/PS5%20title%20change.gif?raw=true" width="200">
 
 This integration exposes a Switch service that can be used to switch on/off your PS4/PS5, and determine its current state and show realtime titles of playing game. 
 
@@ -15,7 +15,7 @@ This project is inspired by the original work of [homebridge-playstation](https:
 
 You can install it via Homebridge UI or manually using:
 ```bash
-npm -g homebridge-playstation-game-title
+npm -g homebridge-playstation-title-game
 ```
 
 **Then <a target="_blank" href="https://www.python.org/downloads/">install python3</a>**
