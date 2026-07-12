@@ -2,7 +2,6 @@ import json
 import os
 import sys
 import traceback
-import time
 from psnawp_api import PSNAWP
 from psnawp_api.core import psnawp_exceptions
 
@@ -34,27 +33,27 @@ def main():
 
     try:
         account_ids = json.loads(sys.argv[2])
-    except:
+    except Exception:
         sys.exit(1)
 
     psnawp = PSNAWP(config_token)
 
-    # 1. Attempt to restore session from a JSON file
+    # 1. Restore session from JSON
     if os.path.exists(TOKEN_FILE) and os.path.getsize(TOKEN_FILE) > 0:
         try:
             with open(TOKEN_FILE, "r") as f:
                 saved_response = json.load(f)
 
             psnawp.authenticator.token_response = saved_response
-
-            psnawp.authenticator.fetch_access_token_from_refresh()
+            # PSNAWP will check 'access_token_expires_at' and refresh it automatically during requests if needed.
         except Exception:
             psnawp.authenticator.token_response = None
 
-    # 2. If there is no session (or it has expired) authorization via NPSSO.
+    # 2. If no session exists (first run) — authenticate via NPSSO
     if psnawp.authenticator.token_response is None:
         try:
-            psnawp.me()
+            psnawp.me()  # This method triggers login via NPSSO
+            save_token_response(psnawp.authenticator.token_response)
         except psnawp_exceptions.PSNAWPAuthenticationError:
             print("Auth Error: Update NPSSO code!")
             sys.exit(1)
@@ -62,16 +61,28 @@ def main():
             print("Auth Error")
             sys.exit(1)
 
-    # 3. Get PSN Data
+    # 3. Fetch PSN Data
     try:
         game_title = "Offline"
+
+        # STORE the initial access token before making requests
+        initial_access_token = None
+        if psnawp.authenticator.token_response:
+            initial_access_token = psnawp.authenticator.token_response.get("access_token")
 
         for account_id in account_ids:
             try:
                 user = psnawp.user(account_id=account_id)
+
+                # PSNAWP may silently refresh the token under the hood during this call
                 presence = user.get_presence()
 
-                save_token_response(psnawp.authenticator.token_response)
+                # CHECK if the access token was updated after the request
+                current_access_token = psnawp.authenticator.token_response.get("access_token")
+
+                if current_access_token != initial_access_token:
+                    save_token_response(psnawp.authenticator.token_response)
+                    initial_access_token = current_access_token  # Update variable to prevent redundant saves in the loop
 
                 if presence.get("basicPresence", {}).get("primaryPlatformInfo", {}).get("onlineStatus") != "online":
                     continue
