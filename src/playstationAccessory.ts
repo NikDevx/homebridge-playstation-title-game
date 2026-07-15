@@ -99,9 +99,20 @@ export class PlaystationAccessory {
         this.tvService.getCharacteristic(this.Characteristic.ActiveIdentifier)
             .onSet(this.setTitleSwitchState.bind(this));
 
+        let pollInterval = this.platform.config.pollInterval || 120000;
+        const MAX_POLL_INTERVAL = 240000; // Hard limit 4 minutes (240,000 ms)
+
+        if (pollInterval > MAX_POLL_INTERVAL) {
+            this.platform.log.warn(
+                `[${this.deviceInformation.id}] Poll Interval (${pollInterval}ms) is too high! ` +
+                `Automatically reduced to ${MAX_POLL_INTERVAL}ms to keep the PSN session alive and prevent token expiration.`
+            );
+            pollInterval = MAX_POLL_INTERVAL;
+        }
+
         this.tick = setInterval(
             this.updateDeviceInformations.bind(this),
-            this.platform.config.pollInterval || 120000,
+            pollInterval,
         );
 
         this.api.publishExternalAccessories(PLUGIN_NAME, [this.accessory]);
@@ -124,7 +135,12 @@ export class PlaystationAccessory {
     }
 
     private startTitleUpdateLoop() {
-        const polling = this.platform.config.pollInterval || 120000;
+        let polling = this.platform.config.pollInterval || 120000;
+        const MAX_POLL_INTERVAL = 240000; // Hard limit 4 minutes (240,000 ms)
+
+        if (polling > MAX_POLL_INTERVAL) {
+            polling = MAX_POLL_INTERVAL;
+        }
 
         if (this.titleUpdateInterval) clearInterval(this.titleUpdateInterval);
 

@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import traceback
+import time
 from psnawp_api import PSNAWP
 from psnawp_api.core import psnawp_exceptions
 
@@ -45,12 +46,23 @@ def main():
                 saved_response = json.load(f)
 
             psnawp.authenticator.token_response = saved_response
+
+            # --- LOCAL EXPIRATION CHECK ---
             # PSNAWP will check 'access_token_expires_at' and refresh it automatically during requests if needed.
+            current_time = time.time()
+            expires_at = saved_response.get("access_token_expires_at", 0)
+
+            # If access_token has expired or is about to expire in less than 5 minutes
+            if expires_at - current_time < 700:
+                psnawp.authenticator.fetch_access_token_from_refresh()
+                save_token_response(psnawp.authenticator.token_response)
+
         except Exception:
             psnawp.authenticator.token_response = None
 
     # 2. If no session exists (first run) — authenticate via NPSSO
     if psnawp.authenticator.token_response is None:
+        print(2)
         try:
             psnawp.me()  # This method triggers login via NPSSO
             save_token_response(psnawp.authenticator.token_response)
@@ -63,19 +75,23 @@ def main():
 
     # 3. Fetch PSN Data
     try:
+        print(3)
         game_title = "Offline"
 
         # STORE the initial access token before making requests
         initial_access_token = None
         if psnawp.authenticator.token_response:
             initial_access_token = psnawp.authenticator.token_response.get("access_token")
+            # print(initial_access_token)
 
         for account_id in account_ids:
             try:
                 user = psnawp.user(account_id=account_id)
+                print(user)
 
                 # PSNAWP may silently refresh the token under the hood during this call
                 presence = user.get_presence()
+                print(presence)
 
                 # CHECK if the access token was updated after the request
                 current_access_token = psnawp.authenticator.token_response.get("access_token")
