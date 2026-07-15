@@ -53,13 +53,22 @@ def main():
 
             # If access_token has expired or is about to expire in less than 11 minutes and 40 seconds
             if expires_at - current_time < 700:
+                old_access_token = saved_response.get("access_token")
+
                 psnawp.authenticator.fetch_access_token_from_refresh()
 
-                new_expires_in = psnawp.authenticator.token_response.get("expires_in", 3600)
-                psnawp.authenticator.token_response["access_token_expires_at"] = time.time() + new_expires_in
-                psnawp.authenticator.token_response["refresh_token_expires_at"] = time.time() + 864000
+                new_response = psnawp.authenticator.token_response
+                new_access_token = new_response.get("access_token")
 
-                save_token_response(psnawp.authenticator.token_response)
+                if new_access_token != old_access_token:
+                    new_expires_in = new_response.get("expires_in", 3600)
+                    new_response["access_token_expires_at"] = time.time() + new_expires_in
+                    new_response["refresh_token_expires_at"] = time.time() + 864000
+                else:
+                    new_response["access_token_expires_at"] = saved_response.get("access_token_expires_at")
+                    new_response["refresh_token_expires_at"] = saved_response.get("refresh_token_expires_at")
+
+                save_token_response(new_response)
 
         except Exception:
             psnawp.authenticator.token_response = None
@@ -68,7 +77,11 @@ def main():
     if psnawp.authenticator.token_response is None:
         try:
             psnawp.me()  # This method triggers login via NPSSO
-            save_token_response(psnawp.authenticator.token_response)
+            token_data = psnawp.authenticator.token_response
+            # Immediately set the correct timestamps during the first file creation
+            token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
+            token_data["refresh_token_expires_at"] = time.time() + 864000
+            save_token_response(token_data)
         except psnawp_exceptions.PSNAWPAuthenticationError:
             print("Auth Error: Update NPSSO code!")
             sys.exit(1)
@@ -78,7 +91,7 @@ def main():
 
     # 3. Fetch PSN Data
     try:
-        game_title = "Loading"
+        final_game_title = "Offline"  # Default to Offline
 
         # STORE the initial access token before making requests
         initial_access_token = None
@@ -94,30 +107,37 @@ def main():
                 current_access_token = psnawp.authenticator.token_response.get("access_token")
 
                 if current_access_token != initial_access_token:
-                    save_token_response(psnawp.authenticator.token_response)
+                    token_data = psnawp.authenticator.token_response
+                    token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
+                    token_data["refresh_token_expires_at"] = time.time() + 864000
+
+                    save_token_response(token_data)
                     initial_access_token = current_access_token
 
-                if presence.get("basicPresence", {}).get("primaryPlatformInfo", {}).get("onlineStatus") != "online":
+                status = presence.get("basicPresence", {}).get("primaryPlatformInfo", {}).get("onlineStatus")
+
+                if status != "online":
                     continue
 
                 title_list = presence.get("basicPresence", {}).get("gameTitleInfoList")
 
                 if title_list:
-                    game_title = title_list[0]["titleName"][:63]
+                    # Found a game — break the loop and return the title
+                    final_game_title = title_list[0]["titleName"][:63]
+                    break
                 else:
-                    game_title = "Not playing"
-                break
+                    # If online but no game remember it, but continue checking other accounts
+                    if final_game_title == "Offline":
+                        final_game_title = "Not playing"
 
             except psnawp_exceptions.PSNAWPTooManyRequests:
-                game_title = "Rate limit reached"
+                final_game_title = "Rate limit reached"
                 break
             except Exception:
                 continue
 
-        if game_title == "Loading":
-            game_title = "Offline"
-
-        print(game_title)
+        sys.stdout.write(final_game_title)
+        sys.stdout.flush()
 
     except Exception:
         traceback.print_exc(file=sys.stderr)
