@@ -48,11 +48,10 @@ def main():
             psnawp.authenticator.token_response = saved_response
 
             # --- LOCAL EXPIRATION CHECK ---
-            # PSNAWP will check 'access_token_expires_at' and refresh it automatically during requests if needed.
             current_time = time.time()
             expires_at = saved_response.get("access_token_expires_at", 0)
 
-            # If access_token has expired or is about to expire in less than 5 minutes
+            # If access_token has expired or is about to expire in less than 11 minutes and 40 seconds
             if expires_at - current_time < 700:
                 psnawp.authenticator.fetch_access_token_from_refresh()
                 save_token_response(psnawp.authenticator.token_response)
@@ -62,7 +61,6 @@ def main():
 
     # 2. If no session exists (first run) — authenticate via NPSSO
     if psnawp.authenticator.token_response is None:
-        print(2)
         try:
             psnawp.me()  # This method triggers login via NPSSO
             save_token_response(psnawp.authenticator.token_response)
@@ -75,48 +73,44 @@ def main():
 
     # 3. Fetch PSN Data
     try:
-        print(3)
-        game_title = "Offline"
+        game_title = "Loading"
 
         # STORE the initial access token before making requests
         initial_access_token = None
         if psnawp.authenticator.token_response:
             initial_access_token = psnawp.authenticator.token_response.get("access_token")
-            # print(initial_access_token)
 
         for account_id in account_ids:
             try:
                 user = psnawp.user(account_id=account_id)
-                print(user)
-
-                # PSNAWP may silently refresh the token under the hood during this call
                 presence = user.get_presence()
-                print(presence)
 
                 # CHECK if the access token was updated after the request
                 current_access_token = psnawp.authenticator.token_response.get("access_token")
 
                 if current_access_token != initial_access_token:
                     save_token_response(psnawp.authenticator.token_response)
-                    initial_access_token = current_access_token  # Update variable to prevent redundant saves in the loop
+                    initial_access_token = current_access_token
 
                 if presence.get("basicPresence", {}).get("primaryPlatformInfo", {}).get("onlineStatus") != "online":
                     continue
 
                 title_list = presence.get("basicPresence", {}).get("gameTitleInfoList")
+
                 if title_list:
-                    title = title_list[0]["titleName"]
-                    print(title[:63])
-                    return
+                    game_title = title_list[0]["titleName"][:63]
                 else:
-                    print("Not playing")
-                    return
+                    game_title = "Not playing"
+                break
 
             except psnawp_exceptions.PSNAWPTooManyRequests:
-                print("Rate limit reached")
-                return
+                game_title = "Rate limit reached"
+                break
             except Exception:
                 continue
+
+        if game_title == "Loading":
+            game_title = "Offline"
 
         print(game_title)
 
