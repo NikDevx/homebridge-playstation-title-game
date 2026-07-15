@@ -54,6 +54,11 @@ def main():
             # If access_token has expired or is about to expire in less than 11 minutes and 40 seconds
             if expires_at - current_time < 700:
                 psnawp.authenticator.fetch_access_token_from_refresh()
+
+                new_expires_in = psnawp.authenticator.token_response.get("expires_in", 3600)
+                psnawp.authenticator.token_response["access_token_expires_at"] = time.time() + new_expires_in
+                psnawp.authenticator.token_response["refresh_token_expires_at"] = time.time() + 864000
+
                 save_token_response(psnawp.authenticator.token_response)
 
         except Exception:
