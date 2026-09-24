@@ -58,6 +58,7 @@ sudo chmod +x /path/to/ps_on.py
 sudo chmod +x /path/to/ps_off.py
 ```
 
+
 ## Troubleshooting
 
 If at some point you have any problem, you can try to reset the Homebridge accessory and re-pair it.
