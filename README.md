@@ -45,6 +45,19 @@ You can do this by using the Homebridge UI terminal or an SSH session and manual
 
 - At boot, you should see a message like `"Please add [PS5 XYZ] manually in Home app. Setup Code: 111-22-333"` in the  logs; open the Home app and add your PlayStation as an extra accessory using "Add Accessory" in the top-right menu
 
+
+## Custom commands ON/OFF
+
+If you prefer waking up or putting your PS5 into standby using Home Assistant and the [ha-ps5-remoteplay](https://github.com/iharosi/ha-ps5-remoteplay) integration, this plugin now supports custom PS Command ON (cmdOn) and PS Command OFF (cmdOff) execution paths.
+
+Specify your custom shell command or python script in the plugin settings fields (cmdOn and cmdOff).
+
+Make sure to grant execution permissions to your scripts on your server via terminal:
+```bash
+sudo chmod +x /path/to/ps_on.py
+sudo chmod +x /path/to/ps_off.py
+```
+
 ## Troubleshooting
 
 If at some point you have any problem, you can try to reset the Homebridge accessory and re-pair it.
