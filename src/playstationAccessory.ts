@@ -38,6 +38,7 @@ export class PlaystationAccessory {
     private lockSetOn = false;
     private tick: NodeJS.Timeout | undefined;
     private lockTimeout: NodeJS.Timeout | undefined;
+    private lockUpdateTimeout: NodeJS.Timeout | undefined;
     private readonly kLockTimeout = 20_000;
 
     private titleIDs: string[] = [];
@@ -205,6 +206,31 @@ export class PlaystationAccessory {
         });
     }
 
+    private runCustomCommand(command: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const child = spawn(command, { shell: true });
+
+            let stderr = '';
+            child.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            child.on('close', (code) => {
+                child.removeAllListeners();
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`Command exited with code ${code}: ${stderr.trim()}`));
+                }
+            });
+
+            child.on('error', (err) => {
+                child.removeAllListeners();
+                reject(err);
+            });
+        });
+    }
+
     private async discoverDevice() {
         const device = Device.withId(this.deviceInformation.id);
         this.deviceInformation = await device.discover();
@@ -227,47 +253,64 @@ export class PlaystationAccessory {
             .updateValue(value);
 
         void (async () => {
+            let commandSuccess = false;
             try {
-                const device = await this.discoverDevice();
-                const currentStatus = this.deviceInformation.status;
-                const desiredStatus = value ? DeviceStatus.AWAKE : DeviceStatus.STANDBY;
+                const cmdOn = (this.platform.config.cmdOn || '').trim();
+                const cmdOff = (this.platform.config.cmdOff || '').trim();
 
-                if (currentStatus === desiredStatus) {
-                    this.platform.log.debug(`[${this.deviceInformation.id}] Already in desired state`);
-                    return;
-                }
-
-                try {
-                    const connection = await device.openConnection();
-
-                    if (value) {
-                        this.platform.log.debug(`[${this.deviceInformation.id}] 🆙 Waking device...`);
-                        await timeout(device.wake(), 15_000);
+                if (value) {
+                    if (cmdOn) {
+                        this.platform.log.info(`[${this.deviceInformation.id}] 🆙 Executing Custom ON Command...`);
+                        await timeout(this.runCustomCommand(cmdOn), 15_000);
                     } else {
-                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Sending standby command...`);
-
+                        const device = await this.discoverDevice();
+                        const connection = await device.openConnection();
+                        this.platform.log.debug(`[${this.deviceInformation.id}] 🆙 Waking device via PlayActor...`);
+                        await timeout(device.wake(), 15_000);
+                        await connection.close();
+                    }
+                } else {
+                    if (cmdOff) {
+                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Executing Custom OFF Command...`);
+                        await timeout(this.runCustomCommand(cmdOff), 15_000);
+                    } else {
+                        const device = await this.discoverDevice();
+                        const connection = await device.openConnection();
+                        this.platform.log.info(`[${this.deviceInformation.id}] 💤 Sending standby command via PlayActor...`);
                         await timeout(connection.standby(), 15_000);
+                        await connection.close();
                     }
-
-                    await connection.close();
-                } catch (err) {
-                    const message = (err as Error).message;
-
-                    if (!value && message.includes('403') && message.includes('Remote is already in use')) {
-                        this.platform.log.warn(`[${this.deviceInformation.id}] Remote already in use — assuming console already in standby.`);
-                        await this.updateDeviceInformations(true);
-                        return;
-                    }
-
-                    throw err;
                 }
+
+                commandSuccess = true;
+
+                // Примусово зафіксуємо новий статус локально та у HomeKit
+                this.deviceInformation.status = value ? DeviceStatus.AWAKE : DeviceStatus.STANDBY;
+                this.tvService
+                    .getCharacteristic(this.Characteristic.Active)
+                    .updateValue(value);
 
             } catch (err) {
                 const message = (err as Error).message;
-                this.platform.log.error(`[${this.deviceInformation.id}] Background error: ${message}`);
+
+                if (!value && message.includes('403') && message.includes('Remote is already in use')) {
+                    this.platform.log.warn(`[${this.deviceInformation.id}] Remote already in use — assuming console already in standby.`);
+                    this.deviceInformation.status = DeviceStatus.STANDBY;
+                    this.tvService
+                        .getCharacteristic(this.Characteristic.Active)
+                        .updateValue(false);
+                    return;
+                }
+
+                this.platform.log.error(`[${this.deviceInformation.id}] Power Control Error: ${message}`);
             } finally {
-                this.releaseLocks();
-                await this.updateDeviceInformations(true);
+                if (commandSuccess) {
+                    // У разі успіху заморожуємо фонове опитування на 20 сек, поки PS5 стартує/вимикається
+                    this.releaseLocks(20_000);
+                } else {
+                    this.releaseLocks(0);
+                    await this.updateDeviceInformations(true);
+                }
             }
         })();
     }
@@ -298,7 +341,7 @@ export class PlaystationAccessory {
         } catch (err) {
             this.platform.log.error((err as Error).message);
         } finally {
-            this.releaseLocks();
+            this.releaseLocks(0);
         }
     }
 
@@ -322,16 +365,27 @@ export class PlaystationAccessory {
     private addLocks() {
         this.lockSetOn = true;
         this.lockUpdate = true;
+        if (this.lockTimeout) clearTimeout(this.lockTimeout);
+        if (this.lockUpdateTimeout) clearTimeout(this.lockUpdateTimeout);
+
         this.lockTimeout = setTimeout(() => {
-            this.releaseLocks();
+            this.lockSetOn = false;
         }, this.kLockTimeout);
     }
 
-    private releaseLocks() {
+    private releaseLocks(holdUpdateLockMs = 0) {
         this.lockSetOn = false;
-        this.lockUpdate = false;
-        if (this.lockTimeout) {
-            clearTimeout(this.lockTimeout);
+        if (this.lockTimeout) clearTimeout(this.lockTimeout);
+
+        if (holdUpdateLockMs > 0) {
+            this.lockUpdate = true;
+            if (this.lockUpdateTimeout) clearTimeout(this.lockUpdateTimeout);
+            this.lockUpdateTimeout = setTimeout(() => {
+                this.lockUpdate = false;
+            }, holdUpdateLockMs);
+        } else {
+            this.lockUpdate = false;
+            if (this.lockUpdateTimeout) clearTimeout(this.lockUpdateTimeout);
         }
     }
 }

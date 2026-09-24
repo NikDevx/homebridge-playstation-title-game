@@ -18,6 +18,20 @@
         "default": 6000,
         "description": "Determine how often should device information be fetched (in milliseconds)"
       },
+      "cmdOn": {
+        "title": "PS Command ON",
+        "type": "string",
+        "default": "",
+        "placeholder": "python3 /path/to/ps_on.py",
+        "description": "Custom shell command or Python script execution path to wake up the PS5."
+      },
+      "cmdOff": {
+        "title": "PS Command OFF",
+        "type": "string",
+        "default": "",
+        "placeholder": "python3 /path/to/ps_off.py",
+        "description": "Custom shell command or Python script execution path to put the PS5 in standby."
+      },
       "PSNAWP": {
         "title": "PSNAWP Key",
         "type": "string",
@@ -43,6 +57,12 @@
   "form": [
     "name",
     "pollInterval",
+    "cmdOn",
+    "cmdOff",
+    {
+      "type": "help",
+      "helpvalue": "<p style=\"margin-bottom: 5px;\">⚠️ <b>Important:</b> If you are using custom scripts, make sure to grant them executable permissions in your terminal:<br><code>sudo chmod +x /path/to/ps_on.py</code><br><code>sudo chmod +x /path/to/ps_off.py</code></p>"
+    },
     {
       "type": "help",
       "helpvalue": "<p style=\"margin-bottom: 5px;\">1. Login into your <a href=\"https://www.playstation.com/\" target=\"_blank\"><b>PlayStation</b></a> account.<br>2. Go to <a href=\"https://ca.account.sony.com/api/v1/ssocookie\" target=\"_blank\"><b>get npsso value</b></a><br>3. Copy and paste key to PSNAWP field.</p>"

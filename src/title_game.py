@@ -3,10 +3,13 @@ import os
 import sys
 import traceback
 import time
+import tempfile
 from psnawp_api import PSNAWP
 from psnawp_api.core import psnawp_exceptions
 
-os.environ["PSNAWP_CACHE_DIR"] = "/tmp/psnawp_cache"
+CACHE_DIR = os.path.join(tempfile.gettempdir(), f"psnawp_cache_{os.getuid() if hasattr(os, 'getuid') else 'default'}")
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.environ["PSNAWP_CACHE_DIR"] = CACHE_DIR
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if len(sys.argv) >= 4:
@@ -22,6 +25,14 @@ def save_token_response(token_response):
     try:
         with open(TOKEN_FILE, "w") as f:
             json.dump(token_response, f, indent=4)
+    except Exception:
+        pass
+
+
+def clear_token_file():
+    """Clears the token file to force a fresh login on the next run if an auth error occurs."""
+    try:
+        open(TOKEN_FILE, "w").close()
     except Exception:
         pass
 
@@ -58,19 +69,21 @@ def main():
                 psnawp.authenticator.fetch_access_token_from_refresh()
 
                 new_response = psnawp.authenticator.token_response
-                new_access_token = new_response.get("access_token")
+                new_access_token = new_response.get("access_token") if new_response else None
 
-                if new_access_token != old_access_token:
+                if new_response and new_access_token != old_access_token:
                     new_expires_in = new_response.get("expires_in", 3600)
                     new_response["access_token_expires_at"] = time.time() + new_expires_in
                     new_response["refresh_token_expires_at"] = time.time() + 864000
-                else:
+                elif new_response:
                     new_response["access_token_expires_at"] = saved_response.get("access_token_expires_at")
                     new_response["refresh_token_expires_at"] = saved_response.get("refresh_token_expires_at")
 
-                save_token_response(new_response)
+                if new_response:
+                    save_token_response(new_response)
 
-        except Exception:
+
+        except Exception as e:
             psnawp.authenticator.token_response = None
 
     # 2. If no session exists (first run) — authenticate via NPSSO
@@ -79,14 +92,20 @@ def main():
             psnawp.me()  # This method triggers login via NPSSO
             token_data = psnawp.authenticator.token_response
             # Immediately set the correct timestamps during the first file creation
-            token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
-            token_data["refresh_token_expires_at"] = time.time() + 864000
-            save_token_response(token_data)
+            if isinstance(token_data, dict):
+                token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
+                token_data["refresh_token_expires_at"] = time.time() + 864000
+                save_token_response(token_data)
+            else:
+                save_token_response(token_data)
+
         except psnawp_exceptions.PSNAWPAuthenticationError:
+            clear_token_file()
             print("Auth Error: Update NPSSO code!")
             sys.exit(1)
         except Exception:
-            print("Auth Error")
+            clear_token_file()
+            print("Auth Error: Update NPSSO code!")
             sys.exit(1)
 
     # 3. Fetch PSN Data
@@ -108,10 +127,11 @@ def main():
 
                 if current_access_token != initial_access_token:
                     token_data = psnawp.authenticator.token_response
-                    token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
-                    token_data["refresh_token_expires_at"] = time.time() + 864000
 
-                    save_token_response(token_data)
+                    if isinstance(token_data, dict):
+                        token_data["access_token_expires_at"] = time.time() + token_data.get("expires_in", 3600)
+                        token_data["refresh_token_expires_at"] = time.time() + 864000
+                        save_token_response(token_data)
                     initial_access_token = current_access_token
 
                 status = presence.get("basicPresence", {}).get("primaryPlatformInfo", {}).get("onlineStatus")
@@ -133,7 +153,11 @@ def main():
             except psnawp_exceptions.PSNAWPTooManyRequests:
                 final_game_title = "Rate limit reached"
                 break
-            except Exception:
+            except psnawp_exceptions.PSNAWPAuthenticationError:
+                # Catch mid-flight authentication deaths during presence check
+                clear_token_file()
+                break
+            except Exception as e:
                 continue
 
         sys.stdout.write(final_game_title)
