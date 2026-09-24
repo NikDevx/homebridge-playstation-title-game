@@ -48,8 +48,7 @@ You can do this by using the Homebridge UI terminal or an SSH session and manual
 
 ## Custom commands ON/OFF
 
-If you prefer waking up or putting your PS5 into standby using Home Assistant and the [ha-ps5-remoteplay](https://github.com/iharosi/ha-ps5-remoteplay) integration, this plugin now supports custom PS Command ON (cmdOn) and PS Command OFF (cmdOff) execution paths.
-
+If you prefer managing your PS5's power state with custom commands or via Home Assistant (using the [ha-ps5-remoteplay](https://github.com/iharosi/ha-ps5-remoteplay) integration), this plugin now supports customizable execution paths for PS Command ON (cmdOn) and PS Command OFF (cmdOff).
 Specify your custom shell command or python script in the plugin settings fields (cmdOn and cmdOff).
 
 Make sure to grant execution permissions to your scripts on your server via terminal:
