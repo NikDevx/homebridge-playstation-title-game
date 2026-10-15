@@ -18,6 +18,13 @@ export interface PlaystationPlatformConfig extends PlatformConfig {
   PSNAWP?: string;
   account_id?: Array<{ id: string;}>;
   overrides?: Array<{ deviceId: string; name?: string }>;
+  /**
+   * Optional per-console settings. Lets each console show the game of its own
+   * PSN account(s) instead of every console sharing the global `account_id` list.
+   */
+  devices?: Array<{ deviceId: string; name?: string; account_id?: Array<{ id: string }> }>;
+  /** When true, consoles that are not listed in `devices` are ignored. */
+  onlyConfiguredDevices?: boolean;
   apps?: Array<{ id: string; name: string }>;
 }
 
@@ -56,9 +63,28 @@ export class PlaystationPlatform implements IndependentPlatformPlugin {
   async discoverDevices() {
     const discovery = new Discovery();
     const devices = discovery.discover();
+    const seenDeviceIds = new Set<string>();
 
     for await (const deviceInformation of devices) {
       this.log.debug("Discovered device:", deviceInformation);
+
+      // Discovery can report the same console several times (e.g. while it
+      // changes state); creating a second accessory for the same id would
+      // publish a duplicate external accessory.
+      if (seenDeviceIds.has(deviceInformation.id)) {
+        this.log.debug(`Skipping already registered device ${deviceInformation.id}`);
+        continue;
+      }
+
+      if (this.config.onlyConfiguredDevices &&
+        !this.config.devices?.some((d) => d.deviceId === deviceInformation.id)) {
+        this.log.info(
+          `Ignoring device ${deviceInformation.id} (${deviceInformation.name}) - not listed in "devices".`,
+        );
+        continue;
+      }
+
+      seenDeviceIds.add(deviceInformation.id);
       new PlaystationAccessory(this, deviceInformation);
     }
   }

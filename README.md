@@ -46,6 +46,27 @@ You can do this by using the Homebridge UI terminal or an SSH session and manual
 - At boot, you should see a message like `"Please add [PS5 XYZ] manually in Home app. Setup Code: 111-22-333"` in the  logs; open the Home app and add your PlayStation as an extra accessory using "Add Accessory" in the top-right menu
 
 
+## Multiple consoles / multiple accounts
+
+By default every console shows the game of the first online account in the global **Account ID** list. If you have several consoles (e.g. one per child) add a **Consoles** entry for each one, with the accounts that play on it:
+
+```json
+{
+  "platform": "playstation",
+  "PSNAWP": "<npsso>",
+  "devices": [
+    { "deviceId": "AABBCCDDEEFF", "name": "Kid 1", "account_id": [{ "id": "1111111111111111111" }] },
+    { "deviceId": "112233445566", "name": "Kid 2", "account_id": [{ "id": "2222222222222222222" }] }
+  ],
+  "onlyConfiguredDevices": true
+}
+```
+
+- `deviceId` is the console ID printed in the Homebridge log on discovery (also the accessory serial number).
+- A console without a `devices` entry keeps using the global `account_id` list, so existing setups work unchanged.
+- `onlyConfiguredDevices` (optional) ignores any other PlayStation discovered on your network.
+- A PSN account must be visible to the account that owns the `PSNAWP` token (friend/family) and must not be set to *Appear Offline*, otherwise it shows as **Offline**.
+
 ## Custom commands ON/OFF
 
 If you prefer managing your PS5's power state with custom commands or via Home Assistant (using the [ha-ps5-remoteplay](https://github.com/iharosi/ha-ps5-remoteplay) integration), this plugin now supports customizable execution paths for PS Command ON (cmdOn) and PS Command OFF (cmdOff).
@@ -65,3 +86,9 @@ If at some point you have any problem, you can try to reset the Homebridge acces
 To do so, go to Homebridge UI > "Settings" > "Unpair Bridges / Cameras / TVs / External Accessories" and delete the Playstation.
 
 To reset the credentials used by PlayActor, you need to manually remove the directory `/home/homebridge/.config/playactor`
+
+### Accessory stuck on "Loading" or showing "Offline" by mistake
+
+- The lookup runs `title_game.py` with a network timeout and prefers IPv4. On hosts that advertise IPv6 but have no working IPv6 route, older versions could hang forever and leave the title on "Loading". Set the environment variable `PSN_PREFER_IPV6=1` only if you really want to disable the IPv4-first ordering.
+- If the PSN API fails temporarily, the last known title is kept instead of switching to "Offline". After 5 failed lookups in a row it falls back to "Offline".
+- If a console always shows "Offline" while it is in use, check that the player's PSN account is not set to *Appear Offline* and that its online status is visible to the account used for the `PSNAWP` token.
