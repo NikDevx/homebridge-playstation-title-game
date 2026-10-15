@@ -27,6 +27,17 @@ function timeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     });
 }
 
+// All title lookups share one PSN session/token file, so they run one at a time
+// (a single hung or slow lookup must not pile up concurrent python processes).
+let globalFetchQueue: Promise<void> = Promise.resolve();
+
+// A python lookup that takes longer than this is killed.
+const TITLE_FETCH_TIMEOUT_MS = 45_000;
+// Exit code of title_game.py meaning "PSN could not be queried reliably".
+const EXIT_TRANSIENT_FAILURE = 3;
+// After this many consecutive unreliable lookups we stop keeping the stale title.
+const MAX_CONSECUTIVE_FAILURES = 5;
+
 export class PlaystationAccessory {
     private readonly accessory: PlatformAccessory;
     private readonly tvService: Service;
@@ -45,6 +56,8 @@ export class PlaystationAccessory {
     private dynamicTitleSource: Service | null = null;
     private titleUpdateInterval: NodeJS.Timeout | null = null;
     private lastTitle: string | null = null;
+    private fetchingTitle = false;
+    private consecutiveFetchFailures = 0;
 
     constructor(
         private readonly platform: PlaystationPlatform,
@@ -55,7 +68,11 @@ export class PlaystationAccessory {
             (o) => o.deviceId === deviceInformation.id
         );
 
-        const deviceName = override?.name || this.platform.config.name || 'PlayStation';
+        const deviceConfig = this.platform.config.devices?.find(
+            (d) => d.deviceId === deviceInformation.id
+        );
+
+        const deviceName = deviceConfig?.name || override?.name || this.platform.config.name || 'PlayStation';
 
         this.accessory = new this.api.platformAccessory(deviceName, uuid);
         this.accessory.category = this.api.hap.Categories.TV_SET_TOP_BOX;
@@ -154,56 +171,123 @@ export class PlaystationAccessory {
         this.fetchAndSetTitle();
     }
 
+    private getAccountIds(): string[] {
+        const device = this.platform.config.devices?.find(
+            (d) => d.deviceId === this.deviceInformation.id
+        );
+        const accounts = device?.account_id?.length ? device.account_id : this.platform.config.account_id;
+        return (accounts || []).map((acc) => acc.id);
+    }
+
     private fetchAndSetTitle() {
-        const PSNAWP = this.platform.config.PSNAWP || '';
-        const account_ids: string[] = (this.platform.config.account_id || []).map((acc) => acc.id);
-        const scriptPath = path.join(__dirname, 'title_game.py');
-        const dataFilePath = path.join(this.platform.api.user.storagePath(), 'homebridge_psn_data.json');
-        const get_title = spawn('python3', [scriptPath, PSNAWP, JSON.stringify(account_ids), dataFilePath]);
+        // Skip if the previous lookup for this console is still queued/running.
+        if (this.fetchingTitle) return;
+        this.fetchingTitle = true;
 
-        let output = '';
+        globalFetchQueue = globalFetchQueue
+            .then(() => this.runTitleFetch())
+            .catch((err) => {
+                this.platform.log.debug(`Title fetch failed: ${(err as Error).message}`);
+            })
+            .then(() => {
+                this.fetchingTitle = false;
+            });
+    }
 
-        get_title.stdout.on('data', (data) => {
-            output += data.toString();
+    private runTitleFetch(): Promise<void> {
+        return new Promise((resolve) => {
+            const PSNAWP = this.platform.config.PSNAWP || '';
+            const account_ids = this.getAccountIds();
+            const scriptPath = path.join(__dirname, 'title_game.py');
+            const dataFilePath = path.join(this.platform.api.user.storagePath(), 'homebridge_psn_data.json');
+            const get_title = spawn('python3', [scriptPath, PSNAWP, JSON.stringify(account_ids), dataFilePath]);
+
+            let output = '';
+            let finished = false;
+
+            const finish = () => {
+                if (finished) return false;
+                finished = true;
+                clearTimeout(watchdog);
+                get_title.removeAllListeners();
+                resolve();
+                return true;
+            };
+
+            const watchdog = setTimeout(() => {
+                this.platform.log.debug(`Python title lookup timed out after ${TITLE_FETCH_TIMEOUT_MS}ms - killing it`);
+                get_title.kill('SIGKILL');
+                if (finish()) this.handleFetchFailure();
+            }, TITLE_FETCH_TIMEOUT_MS);
+
+            get_title.stdout.on('data', (data) => {
+                output += data.toString();
+            });
+
+            get_title.on('close', (code) => {
+                if (finished) return;
+                finish();
+
+                if (code === EXIT_TRANSIENT_FAILURE) {
+                    this.handleFetchFailure();
+                    return;
+                }
+
+                if (code !== 0) {
+                    this.platform.log.debug(`Python script exited with code ${code}`);
+                    return;
+                }
+
+                const newTitle = output.trim();
+                if (!newTitle || newTitle.length === 0) return;
+
+                if (
+                    newTitle.toLowerCase().includes('error') ||
+                    newTitle.includes('{') ||
+                    newTitle.includes('database is locked') ||
+                    newTitle.includes('temporarily_unavailable')
+                ) {
+                    this.platform.log.debug(`🔇 Ignored bad title output: ${newTitle}`);
+                    return;
+                }
+
+                this.consecutiveFetchFailures = 0;
+                this.applyTitle(newTitle);
+            });
+
+            get_title.on('error', (err) => {
+                this.platform.log.error(`Failed to start python script: ${err.message}`);
+                finish();
+            });
         });
+    }
 
-        get_title.on('close', (code) => {
-            get_title.removeAllListeners();
+    /**
+     * A lookup failed for a transient reason (network/PSN API). Keep showing the
+     * last known title instead of "Offline"; only after several failures in a
+     * row do we fall back to "Offline" so a permanently broken setup is visible.
+     */
+    private handleFetchFailure() {
+        this.consecutiveFetchFailures++;
+        this.platform.log.debug(
+            `PSN lookup unreliable (${this.consecutiveFetchFailures}/${MAX_CONSECUTIVE_FAILURES}) - keeping "${this.lastTitle}"`
+        );
+        if (this.consecutiveFetchFailures >= MAX_CONSECUTIVE_FAILURES) {
+            this.applyTitle('Offline');
+        }
+    }
 
-            if (code !== 0) {
-                this.platform.log.debug(`Python script exited with code ${code}`);
-                return;
-            }
+    private applyTitle(newTitle: string) {
+        if (newTitle === this.lastTitle || !this.dynamicTitleSource) return;
 
-            const newTitle = output.trim();
-            if (!newTitle || newTitle.length === 0) return;
+        this.lastTitle = newTitle;
+        this.platform.log.info(`🎮 PSN Title Updated: ${newTitle}`);
 
-            if (
-                newTitle.toLowerCase().includes('error') ||
-                newTitle.includes('{') ||
-                newTitle.includes('database is locked') ||
-                newTitle.includes('temporarily_unavailable')
-            ) {
-                this.platform.log.debug(`🔇 Ignored bad title output: ${newTitle}`);
-                return;
-            }
+        const safeTitle = newTitle.substring(0, 63);
 
-            if (newTitle !== this.lastTitle && this.dynamicTitleSource) {
-                this.lastTitle = newTitle;
-                this.platform.log.info(`🎮 PSN Title Updated: ${newTitle}`);
-
-                const safeTitle = newTitle.substring(0, 63);
-
-                this.dynamicTitleSource
-                    .setCharacteristic(this.Characteristic.Name, safeTitle)
-                    .setCharacteristic(this.Characteristic.ConfiguredName, safeTitle);
-            }
-        });
-
-        get_title.on('error', (err) => {
-            this.platform.log.error(`Failed to start python script: ${err.message}`);
-            get_title.removeAllListeners();
-        });
+        this.dynamicTitleSource
+            .setCharacteristic(this.Characteristic.Name, safeTitle)
+            .setCharacteristic(this.Characteristic.ConfiguredName, safeTitle);
     }
 
     private runCustomCommand(command: string): Promise<void> {

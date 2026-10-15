@@ -51,6 +51,49 @@
             }
           }
         }
+      },
+      "devices": {
+        "title": "Consoles (optional)",
+        "type": "array",
+        "description": "Map each console to its own PSN account(s). A console without an entry here uses the global Account ID list above.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "deviceId": {
+              "title": "Console ID",
+              "type": "string",
+              "placeholder": "AABBCCDDEEFF",
+              "description": "The console ID shown in the Homebridge log when it is discovered (also the accessory serial number)."
+            },
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "placeholder": "PlayStation (Living room)",
+              "description": "Optional name for this console in HomeKit."
+            },
+            "account_id": {
+              "title": "Account IDs for this console",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "title": "Account ID",
+                    "type": "string",
+                    "placeholder": "1111111111111111111",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "onlyConfiguredDevices": {
+        "title": "Only show consoles listed above",
+        "type": "boolean",
+        "default": false,
+        "description": "Ignore any other PlayStation discovered on the network (for example a neighbour's console)."
       }
     }
   },
@@ -78,6 +121,22 @@
       "items": [
         "account_id[].id"
       ]
-    }
+    },
+    {
+      "key": "devices",
+      "type": "array",
+      "items": [
+        "devices[].deviceId",
+        "devices[].name",
+        {
+          "key": "devices[].account_id",
+          "type": "array",
+          "items": [
+            "devices[].account_id[].id"
+          ]
+        }
+      ]
+    },
+    "onlyConfiguredDevices"
   ]
 }

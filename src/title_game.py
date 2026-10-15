@@ -4,8 +4,43 @@ import sys
 import traceback
 import time
 import tempfile
+import socket
+import requests
 from psnawp_api import PSNAWP
 from psnawp_api.core import psnawp_exceptions
+
+# Exit code used when PSN could not be queried reliably (network/API failure).
+# The Node side keeps the last known title instead of showing "Offline".
+EXIT_TRANSIENT_FAILURE = 3
+
+# --- Network hardening -------------------------------------------------------
+# 1) Prefer IPv4. On hosts that resolve AAAA records but have no working IPv6
+#    route, connect() can block until the kernel TCP timeout (minutes). IPv6
+#    addresses are kept as a fallback, only ordered after IPv4. Set
+#    PSN_PREFER_IPV6=1 to disable this.
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_first_getaddrinfo(*args, **kwargs):
+    responses = _orig_getaddrinfo(*args, **kwargs)
+    return sorted(responses, key=lambda r: 0 if r[0] == socket.AF_INET else 1)
+
+
+if os.environ.get("PSN_PREFER_IPV6") != "1":
+    socket.getaddrinfo = _ipv4_first_getaddrinfo
+
+# 2) Never wait forever on an HTTP request: psnawp does not set a timeout.
+HTTP_TIMEOUT = (5, 15)  # (connect, read) seconds
+_orig_session_request = requests.Session.request
+
+
+def _request_with_timeout(self, method, url, **kwargs):
+    if kwargs.get("timeout") is None:
+        kwargs["timeout"] = HTTP_TIMEOUT
+    return _orig_session_request(self, method, url, **kwargs)
+
+
+requests.Session.request = _request_with_timeout
 
 CACHE_DIR = os.path.join(tempfile.gettempdir(), f"psnawp_cache_{os.getuid() if hasattr(os, 'getuid') else 'default'}")
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -111,6 +146,7 @@ def main():
     # 3. Fetch PSN Data
     try:
         final_game_title = "Offline"  # Default to Offline
+        failed_accounts = 0  # accounts whose presence could not be read
 
         # STORE the initial access token before making requests
         initial_access_token = None
@@ -156,9 +192,20 @@ def main():
             except psnawp_exceptions.PSNAWPAuthenticationError:
                 # Catch mid-flight authentication deaths during presence check
                 clear_token_file()
+                failed_accounts += 1
                 break
             except Exception as e:
+                # Transient API/network failure for this account: remember it so
+                # we don't report a misleading "Offline" below.
+                failed_accounts += 1
+                print(f"Presence lookup failed for {account_id}: {type(e).__name__}", file=sys.stderr)
                 continue
+
+        # If we found nobody online but at least one lookup failed, the result is
+        # unreliable. Let the caller keep the previous title rather than flashing
+        # "Offline" on a transient error.
+        if final_game_title == "Offline" and failed_accounts > 0:
+            sys.exit(EXIT_TRANSIENT_FAILURE)
 
         sys.stdout.write(final_game_title)
         sys.stdout.flush()
