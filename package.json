@@ -9,6 +9,9 @@
     "type": "git",
     "url": "git://github.com/NikDevx/homebridge-playstation-title-game.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "LICENSE",
