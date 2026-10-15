@@ -65,6 +65,7 @@ By default every console shows the game of the first online account in the globa
 - `deviceId` is the console ID printed in the Homebridge log on discovery (also the accessory serial number).
 - A console without a `devices` entry keeps using the global `account_id` list, so existing setups work unchanged.
 - `onlyConfiguredDevices` (optional) ignores any other PlayStation discovered on your network.
+- `onlyWhenAwake` (optional): PSN reports the game per account, not per console. If the same accounts are listed for several consoles (kids swapping consoles), enable this so a console that is asleep shows "Offline" instead of the game played on another console.
 - A PSN account must be visible to the account that owns the `PSNAWP` token (friend/family) and must not be set to *Appear Offline*, otherwise it shows as **Offline**.
 
 ## Custom commands ON/OFF

@@ -94,6 +94,12 @@
         "type": "boolean",
         "default": false,
         "description": "Ignore any other PlayStation discovered on the network (for example a neighbour's console)."
+      },
+      "onlyWhenAwake": {
+        "title": "Show game only while the console is awake",
+        "type": "boolean",
+        "default": false,
+        "description": "Useful when the same PSN accounts are listed for several consoles: a sleeping console will show Offline instead of the game an account is playing on another console."
       }
     }
   },
@@ -137,6 +143,7 @@
         }
       ]
     },
-    "onlyConfiguredDevices"
+    "onlyConfiguredDevices",
+    "onlyWhenAwake"
   ]
 }

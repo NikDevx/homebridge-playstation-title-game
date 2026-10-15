@@ -25,6 +25,13 @@ export interface PlaystationPlatformConfig extends PlatformConfig {
   devices?: Array<{ deviceId: string; name?: string; account_id?: Array<{ id: string }> }>;
   /** When true, consoles that are not listed in `devices` are ignored. */
   onlyConfiguredDevices?: boolean;
+  /**
+   * When true, a console only shows a game title while it is awake. Useful when
+   * the same PSN accounts are listed for several consoles: PSN reports presence
+   * per account, not per console, so a sleeping console would otherwise show the
+   * game of an account that is playing on another console.
+   */
+  onlyWhenAwake?: boolean;
   apps?: Array<{ id: string; name: string }>;
 }
 
