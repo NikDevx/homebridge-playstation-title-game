@@ -5,6 +5,9 @@
   "description": "Playstation integration for Homebridge",
   "license": "Apache-2.0",
   "homepage": "https://github.com/NikDevx/homebridge-playstation-title-game#readme",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "git://github.com/NikDevx/homebridge-playstation-title-game.git"
