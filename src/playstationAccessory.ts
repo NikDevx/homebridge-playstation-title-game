@@ -252,6 +252,14 @@ export class PlaystationAccessory {
                 }
 
                 this.consecutiveFetchFailures = 0;
+
+                if (this.platform.config.onlyWhenAwake && this.deviceInformation.status !== DeviceStatus.AWAKE) {
+                    // PSN reports the game per account, not per console: don't show
+                    // it on a console that is asleep.
+                    this.applyTitle('Offline');
+                    return;
+                }
+
                 this.applyTitle(newTitle);
             });
 
