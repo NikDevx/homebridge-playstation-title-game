@@ -1,5 +1,7 @@
+import atexit
 import json
 import os
+import shutil
 import sys
 import traceback
 import time
@@ -46,6 +48,48 @@ CACHE_DIR = os.path.join(tempfile.gettempdir(), f"psnawp_cache_{os.getuid() if h
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.environ["PSNAWP_CACHE_DIR"] = CACHE_DIR
 
+# --- Rate-limiter housekeeping ------------------------------------------------
+# psnawp keeps its request rate limiter in SQLite files under the temp dir. This
+# script starts a fresh process on every poll, and depending on the installed
+# psnawp / pyrate-limiter version that state is never cleaned up:
+#   * older versions write every run into one shared "pyrate_limiter.sqlite",
+#     adding a new "ratelimit_<hash>" table per run (hundreds of MB after weeks);
+#   * newer versions create a "psnawp-<pid>/" directory per process.
+# A huge SQLite file makes every request slow (high CPU, "OperationalError"), so
+# presence lookups time out and the tile stays on "Loading"/"Offline". The state
+# is only a short-lived request counter, so dropping it is always safe.
+RATE_LIMIT_DB_MAX_BYTES = 20 * 1024 * 1024  # prune the shared DB above 20 MB
+RATE_LIMIT_DIR_MAX_AGE_S = 60 * 60  # prune stale per-process dirs after 1 hour
+
+
+def prune_rate_limit_files():
+    tmp = tempfile.gettempdir()
+    try:
+        db = os.path.join(tmp, "pyrate_limiter.sqlite")
+        if os.path.exists(db) and os.path.getsize(db) > RATE_LIMIT_DB_MAX_BYTES:
+            for suffix in ("", "-wal", "-shm", "-journal"):
+                try:
+                    os.remove(db + suffix)
+                except OSError:
+                    pass
+        now = time.time()
+        for name in os.listdir(tmp):
+            path = os.path.join(tmp, name)
+            if (
+                name.startswith("psnawp-")
+                and name[len("psnawp-"):].isdigit()
+                and os.path.isdir(path)
+                and now - os.path.getmtime(path) > RATE_LIMIT_DIR_MAX_AGE_S
+            ):
+                shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        pass  # housekeeping must never break a presence lookup
+    # Remove this process's own limiter dir on exit so nothing accumulates.
+    atexit.register(
+        shutil.rmtree, os.path.join(tmp, f"psnawp-{os.getpid()}"), ignore_errors=True
+    )
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if len(sys.argv) >= 4:
     TOKEN_FILE = sys.argv[3]
@@ -83,6 +127,7 @@ def main():
     except Exception:
         sys.exit(1)
 
+    prune_rate_limit_files()
     psnawp = PSNAWP(config_token)
 
     # 1. Restore session from JSON
